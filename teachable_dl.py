@@ -1,362 +1,244 @@
-#!/usr/bin/python
-from __future__ import print_function
-from __future__ import unicode_literals
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
 import os
-import re
-import time
+import sys
+
+import json
 
 import wget
-import requests, lxml.html
-import sys
-import getpass
+import requests
+import lxml.html
+
+from http.cookiejar import MozillaCookieJar
+from bs4 import BeautifulSoup
+from slugify import slugify
 import youtube_dl
 
-from bs4 import BeautifulSoup
+import argparse
 
+class TeachableDownloader():
+  def __init__(self, cookies_file=None, courses_list=None, out_dir=None):
+    self.sess = requests.session()
+    self.cookies_file = cookies_file
+    self.courses_list = courses_list
+    self.out_dir = out_dir
 
-class DL:
-    global s
-    s = requests.session()
+  def run(self):
+    """Performs a full download of all requested courses after instantiation."""
+    if self.cookies_file == None:
+      print("No cookies file provided.")
+      return
+    elif not os.path.isfile(self.cookies_file):
+      print("Could not find or load cookies file.")
+      return
 
-    def __init__(self):
-        self.main()
+    if self.courses_list == None or (isinstance(self.courses_list, list) and len(self.courses_list) == 0):
+      print("No course URLs provided.")
+      return
 
-    def login(self):
+    if self.out_dir != None and not os.path.isdir(self.out_dir):
+      print("Invalid output directory.")
+      return
+
+    try:
+      self._load_cookies()
+    except Exception as e:
+      print("Error loading cookies file: " + str(e))
+      return
+    for course_url in self.courses_list:
+      try:
+        self._fetch_course(course_url)
+      except Exception as e:
+        print("Failed to download course materials at URL: " + course_url + ". Cause: " + str(e))
+
+  def _load_cookies(self):
+    """Attempts to load cookies into current requests session."""
+    cj = MozillaCookieJar()
+    cj.load(self.cookies_file)
+    self.sess.cookies.update(cj)
+
+  def _fetch_course(self, course_url):
+    """Attempts to download all relevant information for a course."""
+    print("Fetching course url: '" + course_url + "'")
+
+    course_info = self._get_course_info(course_url)
+    self._download_course(course_url, course_info)
+    # @todo continue
+
+  def _get_course_info(self, course_url):
+    """"Identifies course title and relevant course sections."""
+    response = self.sess.get(course_url)
+    if response.ok:
+      homepage_html = BeautifulSoup(response.text, "html.parser")
+      course_title = self._parse_course_title(homepage_html)
+      if course_title == None:
+        return None
+      course_sections_list = self._parse_course_sections(homepage_html)
+      if len(course_sections_list) == 0:
+        return None
+      return {"title": course_title, "sections": course_sections_list}
+    else:
+      print("Failed to grab course info at URL: " + course_url + ". Cause: " + response.reason)
+      return None
+
+  def _parse_course_title(self, homepage_html):
+    """Identifies course title within homepage HTML."""
+    sidebar_html = homepage_html.find("div", attrs={"class": "course-sidebar"})
+    if sidebar_html == None:
+      print("Not signed into course (via cookies).")
+      return None
+    course_title_html = sidebar_html.find("h2")
+    if course_title_html == None:
+      print("Unexpected page format (has teachable reworked their frontend?)")
+      return None
+    return slugify(str(course_title_html.get_text()).strip())
+
+  def _parse_course_sections(self, homepage_html):
+    """Identifies course sections, decomposed by title and lesson links."""
+    sec_html_list = homepage_html.find_all(class_="course-section")
+    if sec_html_list == None:
+      print("Failed to find course sections (has teachable reworked their frontend?)")
+      return None
+    sections = list()
+    for sec_html in sec_html_list:
+      sec_title = self._parse_section_title(sec_html)
+      sec_lessons_list = self._parse_section_lessons(sec_html)
+      if sec_title == None or sec_lessons_list == None or len(sec_lessons_list) == 0:
+        print("Failed to scrape section (has teachable reworked their frontend?)")
+      else:
+        sections.append({"title": sec_title, "lessons": sec_lessons_list})
+    return sections
+
+  def _parse_section_title(self, sec_html):
+    """Identifies section title within section HTML."""
+    sec_title_html = sec_html.find("div", attrs={"class": "section-title"})
+    if sec_title_html == None:
+      print("Section title not found.")
+      return None
+    return slugify(str(sec_title_html.contents[2]).strip())
+
+  def _parse_section_lessons(self, sec_html):
+    """Identifies lessons associated with section HTML, by title and link."""
+    lesson_html_list = sec_html.find_all("a", class_="item")
+    lessons = list()
+    for lesson_html in lesson_html_list:
+      lesson_title = self._parse_lesson_title(lesson_html)
+      lesson_rel_link = self._parse_lesson_rel_link(lesson_html)
+      if lesson_title == None or lesson_rel_link == None:
+        print("Failed to scrape lesson (has teachable reworked their frontend?)")
+      else:
+        lessons.append({"title": lesson_title, "rel_link": lesson_rel_link})
+    return lessons
+
+  def _parse_lesson_title(self, lesson_html):
+    """Identifies lesson title associated with lesson block HTML."""
+    lesson_title_html = lesson_html.find("span", attrs={"class": "lecture-name"})
+    if lesson_title_html == None:
+      print("Lesson title not found.")
+      return None
+    return slugify(str(lesson_title_html.get_text()).strip())
+
+  def _parse_lesson_rel_link(self, lesson_html):
+    """Identifies lesson link associated with lesson block HTML."""
+    return lesson_html.attrs["href"]
+
+  def _download_course(self, course_url, course_info):
+    """Downloads all resources associated with the course."""
+    root_path = os.path.abspath(self.out_dir or os.getcwd())
+    root_url = course_url.split("/courses")[0]
+
+    # Prep class directory
+    class_path = os.path.join(root_path, course_info["title"])
+    os.makedirs(class_path, exist_ok = True)
+
+    # Prep section directories and work within them
+    for idx, section in enumerate(course_info["sections"]):
+      section_path = os.path.join(class_path, str(idx) + "_" + section["title"])
+      os.makedirs(section_path, exist_ok = True)
+
+      # Prep lesson directories and work within them
+      for idx, lesson in enumerate(section["lessons"]):
+        lesson_path = os.path.join(section_path, str(idx) + "_" + lesson["title"])
+        lesson_url = root_url + lesson["rel_link"]
+        os.makedirs(lesson_path, exist_ok = True)
+
         try:
-            self.course_url = raw_input("Enter course url : ")
-            self.email = raw_input("Email : ")
-            self.password = getpass.getpass(prompt="Password : ", stream=sys.stderr)
-
-
+          self._download_lesson(lesson["title"], lesson_url, lesson_path)
         except Exception as e:
-            self.course_url = input("Enter course url : ")
-            self.email = input("Email : ")
-            self.password = getpass.getpass(prompt="Password : ", stream=sys.stderr)
+          print("Failed to download lesson: " + lesson["title"] + ", cause: " + str(e))
 
-        if self.email and self.password and self.course_url:
-            try:
+  def _download_lesson(self, title, url, output_path):
+    """Downloads a single lesson as HTML and any associated media."""
+    response = self.sess.get(url)
+    if response.ok:
+      # Properly handle video attachments
+      lesson_html = BeautifulSoup(response.text, "html.parser")
+      video_html_list = lesson_html.find_all(class_="lecture-attachment-type-video")
+      for idx, video_html in enumerate(video_html_list):
+        # Reserve a new video element in the HTML for a plain MP4
+        vidname = title + "_" + str(idx) + ".mp4"
+        video_tag_new = lesson_html.new_tag("video",
+          id = video_html.id,
+          src = vidname,
+          type = "video/mp4",
+          autoplay = "",
+          preload="auto",
+          controls="",
+          style="width: 75%; margin: 0px auto; display: block;"
+        )
+        video_html.insert_before(video_tag_new)
 
-                print("Trying to Login ...")
-
-                if "stackskills" in self.course_url:
-
-                    login_url = "https://sso.teachable.com/secure/1453/users/sign_in?flow_school_id=1453"
-
-                elif "infosec4tc" in self.course_url:
-
-                    login_url = "https://sso.teachable.com/secure/100167/users/sign_in?flow_school_id=100167"
-
-                elif "ehacking" in self.course_url:
-
-                    login_url = "https://sso.teachable.com/secure/13898/users/sign_in?flow_school_id=13898"
-
-                elif "designerup" in self.course_url:
-                    login_url = "https://sso.teachable.com/secure/278741/users/sign_in?flow_school_id=278741"
-
-
-
-                else:
-                    print("[-] Invalid course URL.")
-                    self.login()
-
-                login = s.get(login_url)
-                login_html = lxml.html.fromstring(login.text)
-
-                hidden_inputs = login_html.xpath(r'//form//input[@type="hidden"]')
-
-                form = {x.attrib["name"]: x.attrib["value"] for x in hidden_inputs}
-
-                form['user[email]'] = self.email
-                form['user[password]'] = self.password
-
-                response = s.post(login_url, data=form)
-
-                if "Invalid email or password" in response.text:
-
-                    print("[-] Login failed.Invalid username or password.")
-                    self.login()
-
-                else:
-                    print("[+] Login successful.")
-
-                    self.getSectionAndLinks(self.course_url)
-
-            except Exception as ex:
-                print("[-] Connection failed.Please check your internet connection and try again!\n " + str(
-                    ex.message))
-
-                sys.exit(1)
-
-        else:
-
-            print("[-] Please enter course url , email and password")
-            self.login()
-
-    def getSectionAndLinks(self, url):
-        self.url = url
-
-        if 'com' in self.url:
-            index = url.index('com') + 3
-
-        elif '.co' in self.url:
-            index = url.index('.co') + 3
-        else:
-            index = url.index('net') + 3
-
-        self.domain = self.url[0:index]
-
+        # Download the video to the appropriate location
+        wistia_html = video_html.find("div", attrs={"class": "attachment-wistia-player"})
+        wistia_id = wistia_html.get("data-wistia-id")
+        ydl_opts = {
+          "format": "mp4",
+          "outtmpl": os.path.join(output_path, vidname),
+          "quiet": True
+        }
         try:
-            print("Downloading to :" + os.getcwd())
-            print("Collecting course information ...")
-
-            if 'designerup.co' in self.url:
-                data = s.get(self.url)
-                soup = BeautifulSoup(data.text, 'html.parser')
-                courseName = soup.find('div', attrs={'class': 'course-info'}).find('h4')
-
-            else:
-                data = requests.get(self.url)
-                soup = BeautifulSoup(data.text, 'html.parser')
-
-                # courseName = soup.find('h2', attrs={'class': 'row'})
-
-                courseName = soup.find('h1', attrs={'class': 'course-title'})
-
-                if courseName is None:
-                    courseName = soup.find('h1', attrs={'class': 'm-0'})
-
-                if courseName is None:
-                    courseName = soup.find('div', attrs={'class': 'bannerHeader'}).find('h2')
-
-            courseName = str(courseName.get_text()).strip()
-
-            print("\nCourse name : " + (str(courseName)))
-
-            try:
-                os.mkdir(courseName)
-                os.chdir(courseName)
-
-            except Exception as e:
-                self.createAndChangeDir(courseName)
-
-                # os.chdir(courseName)
-
-            print("Getting course sections ...")
-
-            data = s.get(self.url)
-
-            soup = BeautifulSoup(data.text, 'html.parser')
-
-            try:
-
-                courseImage = soup.find('div', {'class': 'course-image'}).find('img').get('src')
-
-                print("Downloading course image ... ")
-
-                wget.download(str(courseImage))
-
-            except Exception as e:
-                try:
-                    courseImage = soup.find('img', {'class': 'course-image'}).get('src')
-
-                    print("Downloading course image ... ")
-
-                    wget.download(str(courseImage))
-
-                except Exception as ex:
-                    pass
-
-            # os.rename(filesrc, str(self.name))
-
-            c = 1
-            for i in soup.find_all('span', {'class': 'section-lock'}):
-                section = i.next_sibling.strip()
-                folder = str(c) + "." + str(section).strip()
-
-                try:
-                    if os.path.exists(folder):
-
-                        os.chdir(folder)
-                    else:
-                        os.mkdir(folder)
-                        os.chdir(folder)
-
-                except Exception as e:
-                    self.createAndChangeDir(folder)
-
-                print("\n[+] Found Section : ", section + "\n")
-
-                divs = soup.find_all('div', {'class': 'course-section'}, )
-
-                for div in divs:
-                    links = []
-
-                    if div.find(text=re.compile(section)):
-
-                        theDiv = div
-
-                        soupLinks = BeautifulSoup(str(theDiv), 'html.parser')
-
-                        for i in soupLinks.find_all('a', {'class': 'item'}):
-                            links.append(self.domain + i.attrs['href'])
-
-                        self.prepareDownload(links)
-                        links = []
-
-                        os.chdir('../')
-
-                        break
-
-                c += 1
-
-            # self.sanitizeFileNames()
-            print("\n[+] Download completed.Enjoy your course " + self.email)
-
-        except Exception as ex:
-            print("[-] Error : " + str(ex.message))
-            sys.exit(1)
-
-    def prepareDownload(self, links):
-
-        c = 1
-        totalLectures = len(links)
-
-        Attachments = []
-
-        for link in links:
-            print("Preparing  lecture " + str(c) + " of " + str(totalLectures) + " download ... ")
-
-            data2 = s.get(link)
-            soup1 = BeautifulSoup(data2.text, 'html.parser')
-
-            # wistia= soup1.findAll("div", id=lambda x: x and x.startswith('wistia-'))
-
-            _dict = {}
-            for i in soup1.find_all('a', {'class': 'download'}):
-                _dict["href"] = i.attrs['href']
-                _dict["name"] = i.attrs['data-x-origin-download-name']
-                Attachments.append(_dict)
-
-            for attachment in soup1.findAll('iframe'):
-                Attachments.append(attachment.get('src'))
-
-            for i in soup1.findAll('div', {"class": 'attachment-wistia-player'}):
-                wistia_id = (i.get('data-wistia-id'))
-
-                self.download(wistia_id)
-
-            self.download(0, Attachments)
-
-            Attachments = []
-
-            c += 1
-
-    def download(self, id, *attachments):
-
-        if id != 0:
-            self.wistia_url = "http://fast.wistia.net/embed/iframe/"
-            course_url = self.wistia_url + id
-
-            try:
-                print("Starting download ... ")
-                ydl_opts = {}
-                with youtube_dl.YoutubeDL(ydl_opts) as ydl:
-                    ydl.download([course_url])
-
-            except Exception as ex:
-                print("[-]" + "Error : " + str(ex))
-        else:
-
-            for attachment in attachments:
-                try:
-
-                    if attachment:
-                        for x in attachment:
-                            self.name = str(x["name"])
-                            self.url = str((x["href"]).strip('[]'))
-                        # self.url = self.url[2:-1].strip()
-
-                        print("Downloading attachment : " + self.name)
-                        filesrc = wget.download(str(self.url))
-
-                        os.rename(filesrc, str(self.name))
-
-                except Exception as ex:
-
-                    print("[-]" + "Error can not download attachment  : " + str(ex))
-
-    def sanitizeFileNames(self):
-
-        if "stackskills" in self.course_url:
-            return
-
-        print("sanitizing file names ...")
-
-        path = os.getcwd()
-        for root, dirs, files in os.walk(path):
-
-            for dir in dirs:
-                subFolder = os.path.join(path, dir)
-                # print subFolder, "\n"
-
-                for root, dirs, files in os.walk(subFolder):
-                    for file in files:
-                        try:
-                            index = file.index('mp4') + 3
-
-                            filesrc = os.path.join(subFolder, file)
-                            filedest = os.path.join(subFolder, file[0:index])
-
-                            os.rename(filesrc, filedest)
-                        except Exception as e:
-                            pass
-        print("[+]" + "file name sanitation completed")
-
-    def createAndChangeDir(self, dirName):
-        ''' Creates and changes directory if dir name has invalid chars '''
-
-        invalidChars = ['<', '>', ':', '"', '/', '|', '\\', '?', '*']
-        for char in invalidChars:
-            if char in dirName:
-                dirName = dirName.replace(char, "")
-                if os.path.exists(dirName):
-                    os.chdir(dirName)
-
-                else:
-                    os.mkdir(dirName)
-                    os.chdir(dirName)
-        return
-
-    def main(self):
-        banner = '''
-
-                   _____ ____                 _ _
-                  / ____|  _ \               | | |
-                 | |  __| |_) |  ______    __| | |
-                 | | |_ |  _ <  |______|  / _` | |
-                 | |__| | |_) |          | (_| | |
-                  \_____|____/            \__,_|_|
-
-           			        Version : 1.3.2
-                            Author  : BarakaGB
-                            Visit   : https://github.com/barakagb/gb-dl
-                   Paypal Donation  : barakagb[at]gmail[dot]com
-                    '''
-        print(banner)
-        print(
-            '''A python based utility to download courses from infosec4tc.teachable.com ,ehacking.net ,stackskills.com and designerup.co for personal offline use. \n\n''')
-
-        self.login()
+          with youtube_dl.YoutubeDL(ydl_opts) as ydl:
+              ydl.download(["http://fast.wistia.net/embed/iframe/" + str(wistia_id)])
+        except Exception as e:
+          print("Could not download " + vidname + ", cause: " + str(e))
+
+        # Remove the original video tag from the HTML
+        video_html.decompose()
+
+      # Save the lesson HTML after reformatting
+      lesson_content_html = lesson_html.find("div", attrs={"class": "lecture-content"})
+      with open(os.path.join(output_path, title + ".html"), "w+") as file:
+        file.write(lesson_content_html.prettify())
+    else:
+      print("Failed to grab lesson " + title)
 
 
 if __name__ == '__main__':
-    try:
-        DL = DL()
+  parser = argparse.ArgumentParser(description = "Teach:Able content downloader.")
+  parser.add_argument("-c", "--cookies",
+    required = True,
+    help = "Cookies file containing logged-in session for the desired course(s)."
+  )
+  parser.add_argument("-u", "--url",
+    default = None,
+    nargs = "+",
+    help = "List of URLs of courses to download."
+  )
+  parser.add_argument("-o", "--output",
+    default = None,
+    help = "Output directory in which to place downloaded course content."
+  )
+  args = parser.parse_args(sys.argv[1:])
 
-    except KeyboardInterrupt:
-        print("User Interrupted.")
-        sys.exit(1)
-    except Exception as e:
-        print(e)
-sys.exit(1)
+  try:
+    TeachableDownloader(
+      cookies_file = args.cookies,
+      courses_list = args.url,
+      out_dir = args.output
+    ).run()
+  except KeyboardInterrupt:
+    print("User Interrupted.")
+    sys.exit(1)
+  except Exception as e:
+    print("Error occurred: " + str(e))
