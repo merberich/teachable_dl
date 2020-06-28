@@ -185,7 +185,7 @@ class TeachableDownloader():
           autoplay = "",
           preload="auto",
           controls="",
-          style="width: 75%; margin: 0px auto; display: block;"
+          style="max-width: 75%; margin: 0px auto; display: block;"
         )
         video_html.insert_before(video_tag_new)
 
@@ -206,9 +206,32 @@ class TeachableDownloader():
         # Remove the original video tag from the HTML
         video_html.decompose()
 
+      # Remove comments section for portability + security
+      comments_html = lesson_html.find("div", attrs={"class": "comments"})
+      if comments_html != None:
+        comments_html.decompose()
+
+      # Postprocess images
+      image_html_list = lesson_html.find_all("img")
+      for idx, image_html in enumerate(image_html_list):
+        # Ensure images fit the HTML render area
+        existing_style = ""
+        new_style = "max-width: 75%; margin: 0px auto; display: block;"
+        if "style" in image_html.attrs:
+          existing_style = image_html.attrs["style"]
+        image_html.attrs.update({"style": existing_style + new_style})
+        # Bypass image loading scripts
+        for k,v in image_html.attrs.items():
+          if k == "src":
+            break
+          if "src" in k:
+            image_html.attrs.update({"src": v})
+            break
+
       # Save the lesson HTML after reformatting
       lesson_content_html = lesson_html.find("div", attrs={"class": "lecture-content"})
-      with open(os.path.join(output_path, title + ".html"), "w+") as file:
+      lecture_filename = os.path.join(output_path, title + ".html")
+      with open(lecture_filename, "w+", encoding = "utf-8") as file:
         file.write(lesson_content_html.prettify())
     else:
       print("Failed to grab lesson " + title)
