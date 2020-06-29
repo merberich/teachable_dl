@@ -146,7 +146,7 @@ class TeachableDownloader():
   def _download_course(self, course_url, course_info):
     """Downloads all resources associated with the course."""
     root_path = os.path.abspath(self.out_dir or os.getcwd())
-    root_url = course_url.split("/courses")[0]
+    root_url = course_url.split("/courses/")[0]
 
     # Prep class directory
     class_path = os.path.join(root_path, course_info["title"])
@@ -176,6 +176,12 @@ class TeachableDownloader():
       lesson_html = BeautifulSoup(response.text, "html.parser")
       video_html_list = lesson_html.find_all(class_="lecture-attachment-type-video")
       for idx, video_html in enumerate(video_html_list):
+        # Validate that the video actually exists
+        wistia_html = video_html.find("div", attrs={"class": "attachment-wistia-player"})
+        if wistia_html == None:
+          continue
+        wistia_id = wistia_html.get("data-wistia-id")
+
         # Reserve a new video element in the HTML for a plain MP4
         vidname = title + "_" + str(idx) + ".mp4"
         video_tag_new = lesson_html.new_tag("video",
@@ -190,8 +196,6 @@ class TeachableDownloader():
         video_html.insert_before(video_tag_new)
 
         # Download the video to the appropriate location
-        wistia_html = video_html.find("div", attrs={"class": "attachment-wistia-player"})
-        wistia_id = wistia_html.get("data-wistia-id")
         ydl_opts = {
           "format": "mp4",
           "outtmpl": os.path.join(output_path, vidname),
