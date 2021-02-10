@@ -5,7 +5,7 @@ keyring==21.2.1
 youtube_dl==2020.6.16.1
 beautifulsoup4==4.9.1
 brotli==1.0.7
-cryptography==3.2
+cryptography==3.3.2
 Cython==0.29.20
 ipaddr==2.2.0
 ordereddict==1.1
