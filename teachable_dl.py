@@ -18,11 +18,15 @@ import youtube_dl
 import argparse
 
 class TeachableDownloader():
-  def __init__(self, cookies_file=None, courses_list=None, out_dir=None):
+  def __init__(self, cookies_file=None, courses_list=None, out_dir=None, verbose=False):
+    # Functional members
     self.sess = requests.session()
     self.cookies_file = cookies_file
     self.courses_list = courses_list
     self.out_dir = out_dir
+
+    # Flags
+    self.verbose = verbose
 
   def run(self):
     """Performs a full download of all requested courses after instantiation."""
@@ -64,7 +68,6 @@ class TeachableDownloader():
 
     course_info = self._get_course_info(course_url)
     self._download_course(course_url, course_info)
-    # @todo continue
 
   def _get_course_info(self, course_url):
     """"Identifies course title and relevant course sections."""
@@ -148,6 +151,9 @@ class TeachableDownloader():
     root_path = os.path.abspath(self.out_dir or os.getcwd())
     root_url = course_url.split("/courses/")[0]
 
+    if self.verbose:
+      print("Downloading course: " + course_info["title"])
+
     # Prep class directory
     class_path = os.path.join(root_path, course_info["title"])
     os.makedirs(class_path, exist_ok = True)
@@ -157,11 +163,17 @@ class TeachableDownloader():
       section_path = os.path.join(class_path, str(idx) + "_" + section["title"])
       os.makedirs(section_path, exist_ok = True)
 
+      if self.verbose:
+        print(" |- Downloading section: " + section["title"])
+
       # Prep lesson directories and work within them
       for idx, lesson in enumerate(section["lessons"]):
         lesson_path = os.path.join(section_path, str(idx) + "_" + lesson["title"])
         lesson_url = root_url + lesson["rel_link"]
         os.makedirs(lesson_path, exist_ok = True)
+
+        if self.verbose:
+          print("   |- Downloading lesson: " + lesson["title"])
 
         try:
           self._download_lesson(lesson["title"], lesson_url, lesson_path)
@@ -256,13 +268,18 @@ if __name__ == '__main__':
     default = None,
     help = "Output directory in which to place downloaded course content."
   )
+  parser.add_argument("-v", "--verbose",
+    default = False,
+    action='store_true',
+    help = "Display status messages during download.")
   args = parser.parse_args(sys.argv[1:])
 
   try:
     TeachableDownloader(
       cookies_file = args.cookies,
       courses_list = args.url,
-      out_dir = args.output
+      out_dir = args.output,
+      verbose = args.verbose
     ).run()
   except KeyboardInterrupt:
     print("User Interrupted.")
