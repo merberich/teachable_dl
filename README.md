@@ -28,7 +28,7 @@ Downloading two different courses from different teachable schools. Cookies file
 ## Full Usage
 
 ```
-usage: teachable_dl.py [-h] -c COOKIES [-u URL [URL ...]] [-o OUTPUT]
+usage: teachable_dl.py [-h] -c COOKIES [-u URL [URL ...]] [-o OUTPUT] [-v]
 
 Teach:Able content downloader.
 
@@ -42,6 +42,7 @@ optional arguments:
   -o OUTPUT, --output OUTPUT
                         Output directory in which to place downloaded course
                         content.
+  -v, --verbose         Display status messages during download.
 ```
 
 ## Backlog / TODOs
