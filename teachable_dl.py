@@ -8,9 +8,7 @@ import json
 
 import wget
 import requests
-import lxml.html
 
-from http.cookiejar import MozillaCookieJar
 from bs4 import BeautifulSoup
 from slugify import slugify
 import youtube_dl
@@ -18,10 +16,10 @@ import youtube_dl
 import argparse
 
 class TeachableDownloader():
-  def __init__(self, cookies_file=None, courses_list=None, out_dir=None, verbose=False):
+  def __init__(self, login_file=None, courses_list=None, out_dir=None, verbose=False):
     # Functional members
     self.sess = requests.session()
-    self.cookies_file = cookies_file
+    self.login_file = login_file
     self.courses_list = courses_list
     self.out_dir = out_dir
 
@@ -30,11 +28,11 @@ class TeachableDownloader():
 
   def run(self):
     """Performs a full download of all requested courses after instantiation."""
-    if self.cookies_file == None:
-      print("No cookies file provided.")
+    if self.login_file == None:
+      print("No login file provided.")
       return
-    elif not os.path.isfile(self.cookies_file):
-      print("Could not find or load cookies file.")
+    elif not os.path.isfile(self.login_file):
+      print("Could not find or load login file.")
       return
 
     if self.courses_list == None or (isinstance(self.courses_list, list) and len(self.courses_list) == 0):
@@ -46,9 +44,9 @@ class TeachableDownloader():
       return
 
     try:
-      self._load_cookies()
+      self._teachable_login()
     except Exception as e:
-      print("Error loading cookies file: " + str(e))
+      print("Error logging in: " + str(e))
       return
     for course_url in self.courses_list:
       try:
@@ -56,11 +54,28 @@ class TeachableDownloader():
       except Exception as e:
         print("Failed to download course materials at URL: " + course_url + ". Cause: " + str(e))
 
-  def _load_cookies(self):
-    """Attempts to load cookies into current requests session."""
-    cj = MozillaCookieJar()
-    cj.load(self.cookies_file)
-    self.sess.cookies.update(cj)
+  def _teachable_login(self):
+    login_url = "https://sso.teachable.com/secure/teachable_accounts/sign_in"
+    payload = {}
+
+    with open(self.login_file) as file:
+      data = json.load(file)
+      payload.update(data)
+    result = self.sess.get(login_url)
+
+    soup = BeautifulSoup(result.text, "html.parser")
+    authenticity_token = soup.find("meta", attrs ={"name":"csrf-token"})["content"]
+    payload["authenticity_token"] = authenticity_token
+
+    self.sess.headers["accept"] = "application/json"
+
+    result = self.sess.post(
+    	login_url,
+    	data = payload,
+    	headers = dict(referer=login_url)
+    )
+    #print(result.text)
+    return None
 
   def _fetch_course(self, course_url):
     """Attempts to download all relevant information for a course."""
@@ -89,7 +104,7 @@ class TeachableDownloader():
     """Identifies course title within homepage HTML."""
     sidebar_html = homepage_html.find("div", attrs={"class": "course-sidebar"})
     if sidebar_html == None:
-      print("Not signed into course (via cookies).")
+      print("Not signed into course.")
       return None
     course_title_html = sidebar_html.find("h2")
     if course_title_html == None:
@@ -255,9 +270,9 @@ class TeachableDownloader():
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description = "Teach:Able content downloader.")
-  parser.add_argument("-c", "--cookies",
+  parser.add_argument("-l", "--login-file",
     required = True,
-    help = "Cookies file containing logged-in session for the desired course(s)."
+    help = "Login file as JSON in form: { \"username\": \"your-username-here\", \"password\": \"your-password-here\"}"
   )
   parser.add_argument("-u", "--url",
     default = None,
@@ -276,7 +291,7 @@ if __name__ == '__main__':
 
   try:
     TeachableDownloader(
-      cookies_file = args.cookies,
+      login_file = args.login_file,
       courses_list = args.url,
       out_dir = args.output,
       verbose = args.verbose

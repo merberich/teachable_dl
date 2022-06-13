@@ -1,0 +1,18 @@
+# Netscape HTTP Cookie File
+
+courses.data36.com	FALSE	/	TRUE	1718256974	ahoy_visitor	1521241a-87bd-4a11-a5a4-35a480fd35e2
+.data36.com	TRUE	/	TRUE	1686634574	_afid	1521241a-87bd-4a11-a5a4-35a480fd35e2
+.data36.com	TRUE	/	TRUE	1686634574	aid	1521241a-87bd-4a11-a5a4-35a480fd35e2
+courses.data36.com	FALSE	/	TRUE	0	sk_hz1gr9gn_access	eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJ1c2VyIiwiaWF0IjoxNjU1MDk4NTc1LCJqdGkiOiI3MDY4YmVjNy1iMDhiLTQ4ODQtOTg1ZS05OTA5MjhmNTRiNjIiLCJpc3MiOiJza19oejFncjlnbiIsInN1YiI6ImFhNzAzNzA0LTA2ZjEtNDRiOS1iZjkzLTQ1MTE2OThiNWQ0MSJ9.77Bp29UfMt8tDQ5kQE3UiXZUZnQEVW8AulDQARFsw74
+courses.data36.com	FALSE	/	TRUE	0	signed_in	true
+.courses.data36.com	TRUE	/	TRUE	1655100375	__cf_bm	rSsmOHXWBAPcS_e5HYExYI1bt9hnR9YmLqEtPjOlQA4-1655098575-0-Ad8fLsHf8mkk5nrqV53lB29yL0esjJxrWi7vu58ot3r8TXPmOTKINImGr3zZ2HRGUK3cIwFLdQ/cVwbSfanM5bY=
+.courses.data36.com	TRUE	/	TRUE	0	__cfruid	48c91282f5164bfaeb194136ff3578bd41f0d226-1655098575
+courses.data36.com	FALSE	/	TRUE	0	site_preview	logged_in
+.data36.com	TRUE	/	FALSE	1686634575	ajs_group_id	null
+.data36.com	TRUE	/	FALSE	1686634575	ajs_user_id	%2241508068%22
+.data36.com	TRUE	/	FALSE	1686634575	ajs_anonymous_id	%22a16f55d8-705a-4fbd-bb09-b81094dbaa61%22
+courses.data36.com	FALSE	/	TRUE	1686634575	aid	1521241a-87bd-4a11-a5a4-35a480fd35e2
+courses.data36.com	FALSE	/	FALSE	0	wistiaVisitorKey	7fb52b3_a66913c5-f5fc-478a-a5cc-67fcb25e7d60-086d0a38c-20dcc248bbf1-8b35
+courses.data36.com	FALSE	/	TRUE	1655112978	ahoy_visit	49b561d0-ee45-4744-bdcc-4241929bada6
+courses.data36.com	FALSE	/	TRUE	1657690578	_session_id	88cead26fa386c70e47292b15a15a1b8
+courses.data36.com	FALSE	/	FALSE	1655098637	ahoy_events	%5B%7B%22id%22%3A%2228fbf341-c24b-4c32-8cc4-96358989e40a%22%2C%22name%22%3A%22%24view%22%2C%22properties%22%3A%7B%22url%22%3A%22https%3A//courses.data36.com/%22%2C%22title%22%3A%22Data36%20-%20Data%20Science%20Online%20Video%20Courses%22%2C%22page%22%3A%22/%22%7D%2C%22time%22%3A1655098575.246%7D%2C%7B%22id%22%3A%22ad91af63-239e-4432-b573-24c8b94787fe%22%2C%22name%22%3A%22%24view%22%2C%22properties%22%3A%7B%22url%22%3A%22https%3A//courses.data36.com/courses/enrolled/455539%22%2C%22title%22%3A%22Data36%20-%20Data%20Science%20Online%20Video%20Courses%22%2C%22page%22%3A%22/%22%7D%2C%22time%22%3A1655098577.72%7D%5D

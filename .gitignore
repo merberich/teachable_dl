@@ -36,4 +36,4 @@ env.bak/
 venv.bak/
 
 # Specific to this project
-cookies*
+login_file.json
