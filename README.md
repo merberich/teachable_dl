@@ -2,6 +2,15 @@
 
 Python 3 command-line tool for downloading your purchased + free courses on the teachable platform.
 
+---
+**NOTICE**
+
+As of 2022 this script is defunct. With the release of the Teachable API, Teachable now uses a Single-Sign On method backed by Cloudflare, which effectively means that the cookies method for maintaining session information no longer works for this site. Cloudflare also stops bots from being able to log into the service successfully via a number of checks (browser checking, captchas, etc).
+
+If you have experience working around bot-defeating features and believe users should have direct file access to content they paid for, please feel free to open a PR. Branch `feature-workaround-teachable-sso` has infrastructure for login direct to the SSO, but is currently defeated by bot detection.
+
+---
+
 ## Installation
 
 1) Install latest Python 3 version.
