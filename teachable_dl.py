@@ -7,7 +7,8 @@ import sys
 import json
 
 import wget
-import requests
+#import requests
+import cloudscraper
 
 from bs4 import BeautifulSoup
 from slugify import slugify
@@ -18,7 +19,8 @@ import argparse
 class TeachableDownloader():
   def __init__(self, login_file=None, courses_list=None, out_dir=None, verbose=False):
     # Functional members
-    self.sess = requests.session()
+    #self.sess = requests.session()
+    self.sess = cloudscraper.create_scraper()
     self.login_file = login_file
     self.courses_list = courses_list
     self.out_dir = out_dir
