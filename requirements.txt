@@ -1,5 +1,5 @@
 beautifulsoup4==4.9.3
 youtube-dl==2021.6.6
-lxml==4.6.5
+lxml==4.9.1
 wget==3.2
 unicode_slugify==0.1.3
